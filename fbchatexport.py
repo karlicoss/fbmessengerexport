@@ -65,6 +65,31 @@ class ExportDb:
 # https://fbchat.readthedocs.io/en/stable/api.html#fbchat.Client.fetchThreadMessages
 FETCH_THREAD_MESSAGES_LIMIT = 100
 
+
+
+import backoff # type: ignore
+
+class RetryMe(Exception):
+    pass
+
+
+@backoff.on_exception(backoff.expo, RetryMe, max_time=10 * 60)
+def fetchThreadMessagesRetry(client, *args, **kwargs):
+    try:
+        return client.fetchThreadMessages(*args, **kwargs)
+    except fbchat.FBchatFacebookError as e:
+        # eh, happens sometimes for no apparent reason? after a while goes away?
+        # fbchat._exception.FBchatFacebookError: GraphQL error #None: Errors while executing operation "MessengerThreads": At Query.message_thread:MessageThread.messages:MessagesOfThreadConnection.page_info: Field implementation threw an exception. Check your server logs for more information. / None
+        logger = get_logger()
+        if 'Field implementation threw an exception' in str(e):
+            # TODO not sure if this is better or relying on 'backoff' logger?
+            # logger.exception(e)
+            # logger.warning('likely not a real error, retrying..')
+            raise RetryMe
+        else:
+            raise e
+
+
 def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
     """
     Returns messages in thread (from newest to oldest)
@@ -83,7 +108,8 @@ def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
         logger.debug('thread %s: fetching %d/%d', tname, done, limit)
 
         before = last_ts if last_msg is None else last_msg.timestamp
-        chunk = client.fetchThreadMessages(tid, before=before, limit=FETCH_THREAD_MESSAGES_LIMIT)
+        # TODO make this defensive? implement some logic for fetching gaps
+        chunk = fetchThreadMessagesRetry(client, tid, before=before, limit=FETCH_THREAD_MESSAGES_LIMIT)
         if len(chunk) == 0:
             # not sure if can happen??
             yield RuntimeError("Expected non-empty chunk")
@@ -114,23 +140,13 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
     for thread in threads:
         db.insert_thread(thread)
 
-    # TODO def should be defensive...
-    # threads = threads[:1] + threads[2:3] # TODO FIXME 
-    # threads = threads[:1] # TODO FIXME
-
     for thread in threads:
         for r in iter_thread(client=client, thread=thread):
             if isinstance(r, Exception):
                 logger.exception(r)
                 yield r
             else:
-                # TODO WAL?
-                try:
-                    db.insert_message(r)
-                except Exception as e:
-                    logger.exception(e)
-                    # TODO FIXME
-                    from IPython import embed; embed()
+                db.insert_message(r)
 
 
 def run(*, cookies: str, db_path: Path):
@@ -147,13 +163,16 @@ def run(*, cookies: str, db_path: Path):
     if len(errors) > 0:
         logger.error('Had errors during processing')
         sys.exit(1)
+    else:
+        logger.info('Success!')
 
 
 def main():
     logger = get_logger()
     from kython.klogging import setup_logzero
     setup_logzero(logger, level=logging.DEBUG) # TODO FIXME remove
-    # logging.basicConfig(level=logging.INFO)
+    setup_logzero(logging.getLogger('backoff'), level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
 
     # TODO move setup_logger there as well?
     from export_helper import setup_parser
