@@ -1,10 +1,79 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import logging
+from typing import List, Iterator, Union, TypeVar, Optional
 
 import fbchat # type: ignore
-from fbchat import Client
+from fbchat import Client, Thread, Message, ThreadLocation
 
+
+T = TypeVar('T')
+Res = Union[T, Exception]
+
+def get_logger():
+    return logging.getLogger('fbchatexport')
+
+
+def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
+    """
+    Returns messages in thread (from newest to oldest)
+    """
+    logger = get_logger()
+    tid = thread.uid
+    tname = thread.name
+
+    last_ts = thread.last_message_timestamp
+    # TODO not sure how reliable it is, but anyway.. should be consistent?
+    limit = thread.message_count
+
+    last_msg: Optional[Message] = None
+    done = 0
+    while done < limit:
+        logger.debug('thread %s: fetching %d/%d', tname, done, limit)
+
+        before = last_ts if last_msg is None else last_msg.timestamp
+        chunk = client.fetchThreadMessages(tid, before=before)
+        if len(chunk) == 0:
+            # not sure if can happen??
+            yield RuntimeError("Expected non-empty chunk")
+            break
+
+        if last_msg is not None:
+            assert last_msg.uid == chunk[0].uid
+            del chunk[0]
+
+        yield from chunk
+        done += len(chunk)
+        last_msg = chunk[-1]
+
+
+def iter_all(client: Client):
+    logger = get_logger()
+    # TODO what is pending??
+    locs = [ThreadLocation.INBOX, ThreadLocation.ARCHIVED]
+    # TODO FIXME more defensive?
+    # TODO shit, this def gonna need some sort of checkpointing...
+    threads: List[Thread] = []
+    for loc in locs:
+        logger.debug('fetching threads: %s', loc)
+        # fetches all threads by default
+        thr = client.fetchThreads(loc)
+        threads.extend(thr)
+
+    # TODO save threads as well?
+
+    # TODO def should be defensive...
+    threads = threads[:1] + threads[2:3] # TODO FIXME 
+    for thread in threads:
+        messages: List[Message] = []
+        for r in iter_thread(client=client, thread=thread):
+            if isinstance(r, Exception):
+                yield r
+            else:
+                messages.append(r)
+
+    # from IPython import embed; embed()
 
 def run(cookies: str):
     client = Client(
@@ -12,11 +81,15 @@ def run(cookies: str):
         'dummy_password',
         session_cookies=json.loads(cookies),
     )
-    threads = client.fetchThreadList()
-    print(threads)
-
+    list(iter_all(client=client)) # FIXME force it
 
 def main():
+    logger = get_logger()
+    from kython.klogging import setup_logzero
+    setup_logzero(logger, level=logging.DEBUG)
+    # logging.basicConfig(level=logging.INFO)
+
+    # TODO move setup_logger there as well?
     from export_helper import setup_parser
     parser = argparse.ArgumentParser("Tool to export your personal Facebook chat/Messenger data")
     setup_parser(parser=parser, params=['cookies'])
