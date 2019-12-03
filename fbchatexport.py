@@ -27,16 +27,21 @@ class ExportDb:
     def __init__(self, db_path: Path) -> None:
         self.db = dataset.connect('sqlite:///{}'.format(db_path))
         # TODO need to disconnect??
-        self.ttable = self.db['threads']
-        self.mtable = self.db['messages']
+        self.ttable = self.db.get_table('threads' , primary_id='uid', primary_type=self.db.types.text)
+        self.mtable = self.db.get_table('messages', primary_id='uid', primary_type=self.db.types.text)
 
     def insert_thread(self, thread: Thread) -> None:
         dd = vars(thread)
         delk(dd, 'type') # user vs group? fine without it for now
         # TODO could remove remaining crap, e.g. color/emoji/plan, but for now don't bother
 
-        # TODO FIMXE pkey/upsert??
-        self.ttable.insert(dd)
+        delk(dd, 'nicknames')
+        delk(dd, 'admins')
+        delk(dd, 'approval_requests')
+
+        delk(dd, 'participants') # FIXME def would be nice to keep this one..
+
+        self.ttable.upsert(dd, ['uid'])
 
     def insert_message(self, message: Message) -> None:
         dd = vars(message)
@@ -48,9 +53,12 @@ class ExportDb:
         delk(dd, 'quick_replies')
         delk(dd, 'reactions')
 
+        delk(dd, 'sticker') # Sticker type
+        delk(dd, 'emoji_size') # EmojiType
+
         delk(dd, 'replied_to') # we've got reply_to_id anyway
 
-        self.mtable.insert(dd)
+        self.mtable.upsert(dd, ['uid'])
 
 
 # doc doesn't say anything about cap and default is 20. for me 100 seems to work too
@@ -90,14 +98,12 @@ def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
         last_msg = chunk[-1]
 
 
-# TODO maybe a json for each user? I guess it's ok to start with..
-# TODO atomic writes?
+# TODO needs some checkpointing..
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
     logger = get_logger()
-    # TODO what is pending??
+
+    # TODO what is ThreadLocation.PENDING?
     locs = [ThreadLocation.INBOX, ThreadLocation.ARCHIVED]
-    # TODO FIXME more defensive?
-    # TODO shit, this def gonna need some sort of checkpointing...
     threads: List[Thread] = []
     for loc in locs:
         logger.debug('fetching threads: %s', loc)
@@ -105,16 +111,14 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         thr = client.fetchThreads(loc)
         threads.extend(thr)
 
-    # TODO save threads as well?
-    # vars(thread)
-    # vars(msg?)
+    for thread in threads:
+        db.insert_thread(thread)
 
     # TODO def should be defensive...
     # threads = threads[:1] + threads[2:3] # TODO FIXME 
     # threads = threads[:1] # TODO FIXME
-    for thread in threads:
-        db.insert_thread(thread)
 
+    for thread in threads:
         for r in iter_thread(client=client, thread=thread):
             if isinstance(r, Exception):
                 logger.exception(r)
@@ -155,7 +159,7 @@ def main():
     from export_helper import setup_parser
     parser = argparse.ArgumentParser("Tool to export your personal Facebook chat/Messenger data")
     setup_parser(parser=parser, params=['cookies'])
-    parser.add_argument('--db-path', type=Path, help='Path to result sqlite database with')
+    parser.add_argument('--db-path', type=Path, help='Path to result sqlite database with', required=True)
     args = parser.parse_args()
 
     params = args.params
