@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from pathlib import Path
+import itertools
 import json
 import logging
 import sys
@@ -41,11 +42,15 @@ class ExportDb:
 
         delk(dd, 'participants') # FIXME def would be nice to keep this one..
 
+        lts = 'last_message_timestamp'
+        dd[lts] = int(dd[lts]) # makes more sense for queries?
+
         self.ttable.upsert(dd, ['uid'])
 
-    def insert_message(self, message: Message) -> None:
+    def insert_message(self, thread: Thread, message: Message) -> None:
         dd = vars(message)
-        # TODO FIMXE just store as sqlite json??
+        # TODO just store as sqlite json?? not sure if makes sense
+
         # delete lists, not sure how to handle
         delk(dd, 'mentions')
         delk(dd, 'read_by')
@@ -58,7 +63,34 @@ class ExportDb:
 
         delk(dd, 'replied_to') # we've got reply_to_id anyway
 
+        ts = 'timestamp'
+        dd[ts] = int(dd[ts]) # makes more sense for queries?
+
+        dd['thread_id'] = thread.uid
+
         self.mtable.upsert(dd, ['uid'])
+
+    def get_oldest(self, thread: Thread) -> Optional[int]:
+        # TODO use sql placeholders?
+        query = 'SELECT MIN(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
+        [res] = list(self.db.query(query))
+        mt = res['MIN(timestamp)']
+        return None if mt == '' else int(mt)
+
+    def get_newest(self, thread: Thread) -> Optional[int]:
+        # TODO use sql placeholders?
+        query = 'SELECT MAX(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
+        [res] = list(self.db.query(query))
+        mt = res['MAX(timestamp)']
+        return None if mt == '' else int(mt)
+
+    def check_fetched_all(self, thread: Thread) -> None:
+        query = 'SELECT COUNT(*) FROM messages WHERE thread_id={}'.format(thread.uid)
+        [res] = list(self.db.query(query))
+        cnt = res['COUNT(*)']
+        if cnt != thread.message_count:
+            raise RuntimeError('Expected {} messages in thread {}, got {}'.format(thread.message_count, thread.name, cnt))
+
 
 
 # doc doesn't say anything about cap and default is 20. for me 100 seems to work too
@@ -90,28 +122,26 @@ def fetchThreadMessagesRetry(client, *args, **kwargs):
             raise e
 
 
-def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
+def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> Iterator[Res[Message]]:
     """
-    Returns messages in thread (from newest to oldest)
+    Returns messages in thread (from newer to older)
     """
     logger = get_logger()
     tid = thread.uid
     tname = thread.name
 
-    last_ts = thread.last_message_timestamp
-    # TODO not sure how reliable it is, but anyway.. should be consistent?
-    limit = thread.message_count
+    last_ts: int = thread.last_message_timestamp if before is None else before
 
     last_msg: Optional[Message] = None
     done = 0
-    while done < limit:
-        logger.debug('thread %s: fetching %d/%d', tname, done, limit)
+    while True:
+        logger.debug('thread %s: fetched %d starting from %s (total %d)', tname, done, last_ts, thread.message_count)
 
         before = last_ts if last_msg is None else last_msg.timestamp
         # TODO make this defensive? implement some logic for fetching gaps
         chunk = fetchThreadMessagesRetry(client, tid, before=before, limit=FETCH_THREAD_MESSAGES_LIMIT)
         if len(chunk) == 0:
-            # not sure if can happen??
+            # not sure if can actually happen??
             yield RuntimeError("Expected non-empty chunk")
             break
 
@@ -119,12 +149,14 @@ def iter_thread(client: Client, thread: Thread) -> Iterator[Res[Message]]:
             assert last_msg.uid == chunk[0].uid
             del chunk[0]
 
+        if len(chunk) == 0:
+            break # hopefully means that there are no more messages to fetch?
+
         yield from chunk
         done += len(chunk)
         last_msg = chunk[-1]
 
 
-# TODO needs some checkpointing..
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
     logger = get_logger()
 
@@ -141,12 +173,29 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         db.insert_thread(thread)
 
     for thread in threads:
-        for r in iter_thread(client=client, thread=thread):
+        oldest = db.get_oldest(thread)
+        newest = db.get_newest(thread)
+        # the assumption is that everything in [newest, oldest] is already fetched
+
+        # so we want to fetch [oldest: ] in case we've been interrupted before
+        iter_oldest = iter_thread(client=client, thread=thread, before=oldest)
+
+        # and we want to fetch everything until we encounter newest
+        iter_newest = iter_thread(client=client, thread=thread, before=None)
+
+        for r in itertools.chain(iter_oldest, iter_newest):
             if isinstance(r, Exception):
                 logger.exception(r)
                 yield r
             else:
-                db.insert_message(r)
+                mts = int(r.timestamp)
+                if newest is not None and oldest is not None and newest > mts > oldest:
+                    logger.info('Fetched everything for %s, interrupting', thread.name)
+                    break # interrupt, thus interrupting fetching unnecessary data
+                db.insert_message(thread, r)
+
+        # TODO not sure if that should be more defensive?
+        db.check_fetched_all(thread)
 
 
 def run(*, cookies: str, db_path: Path):
