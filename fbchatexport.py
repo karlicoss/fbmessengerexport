@@ -5,7 +5,7 @@ import itertools
 import json
 import logging
 import sys
-from typing import List, Iterator, Union, TypeVar, Optional
+from typing import List, Iterator, Union, TypeVar, Optional, Tuple
 
 import dataset # type: ignore
 
@@ -70,21 +70,24 @@ class ExportDb:
 
         self.mtable.upsert(dd, ['uid'])
 
-    def get_oldest(self, thread: Thread) -> Optional[int]:
-        # TODO use sql placeholders?
-        query = 'SELECT MIN(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
-        [res] = list(self.db.query(query))
-        mt = res['MIN(timestamp)']
-        return None if mt == '' else int(mt)
+    def get_oldest_and_newest(self, thread: Thread) -> Optional[Tuple[int, int]]:
+        if 'messages' not in self.db.tables:
+            return None # meh, but works I guess
 
-    def get_newest(self, thread: Thread) -> Optional[int]:
         # TODO use sql placeholders?
-        query = 'SELECT MAX(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
+        query = 'SELECT MIN(timestamp), MAX(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
         [res] = list(self.db.query(query))
-        mt = res['MAX(timestamp)']
-        return None if mt == '' else int(mt)
+        mints = res['MIN(timestamp)']
+        maxts = res['MAX(timestamp)']
+        if mints is None:
+            assert maxts is None
+            return None
+        return int(mints), int(maxts)
 
     def check_fetched_all(self, thread: Thread) -> None:
+        if 'messages' not in self.db.tables:
+            return # meh, but works I guess
+
         query = 'SELECT COUNT(*) FROM messages WHERE thread_id={}'.format(thread.uid)
         [res] = list(self.db.query(query))
         cnt = res['COUNT(*)']
@@ -173,8 +176,12 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         db.insert_thread(thread)
 
     for thread in threads:
-        oldest = db.get_oldest(thread)
-        newest = db.get_newest(thread)
+        on = db.get_oldest_and_newest(thread)
+        if on is None:
+            oldest = None
+            newest = None
+        else:
+            oldest, newest = on
         # the assumption is that everything in [newest, oldest] is already fetched
 
         # so we want to fetch [oldest: ] in case we've been interrupted before
