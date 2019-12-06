@@ -207,9 +207,12 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
 
 def run(*, cookies: str, db_path: Path):
     logger = get_logger()
+    uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
     client = Client(
+        # rely on cookies for login
         'dummy_email',
         'dummy_password',
+        user_agent=uag,
         session_cookies=json.loads(cookies),
     )
 
