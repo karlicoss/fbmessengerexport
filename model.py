@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from datetime import datetime
 from pathlib import Path
 from typing import Collection, Dict, Iterator, List, Sequence, Union
 
@@ -9,6 +10,18 @@ import dataset # type: ignore
 class Message:
     def __init__(self, row: Dict) -> None:
         self.row = row
+
+    @property
+    def dt(self) -> datetime:
+        # TODO FIXME timezone??
+        return datetime.utcfromtimestamp(self.row['timestamp'] / 1000)
+
+    @property
+    def text(self) -> str:
+        # TODO opetional??
+        return self.row['text']
+
+
 
 
 class Thread:
