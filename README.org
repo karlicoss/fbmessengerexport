@@ -5,7 +5,7 @@ Main difference from "Download your information" export is that this tool can be
 Note that at the moment it exports *text only*, images or videos are not exported.
 
 * Setting up
-1. =pip3 install --user requirements.txt=
+1. =pip3 install --user -r requirements.txt=
 2. Login and get cookies: ~./export.py --login~
 
    #+begin_src python :results drawer :exports results
