@@ -91,13 +91,13 @@ After that, use:
 
 : ./export.py --secrets /path/to/secrets.py
 
-That way you type less and have control over where you keep your plaintext tokens/passwords.
+That way you type less and have control over where you keep your plaintext secrets.
 
 *Alternatively*, you can pass parameters directly, e.g.
 
 : ./export.py {paramss}
 
-However, this is verbose and prone to leaking your keys in shell history.
+However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
     '''
 
     if extra_usage is not None:

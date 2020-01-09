@@ -46,7 +46,7 @@ class Thread:
             yield Message(row=row, thread=self)
 
 
-class Model:
+class DAL:
     def __init__(self, db_path: Union[Path, str]) -> None:
         self.db = dataset.connect('sqlite:///{}'.format(db_path))
         self.tt = self.db['threads']
@@ -57,17 +57,12 @@ class Model:
             yield Thread(mt=self.mt, row=row)
 
 
-def main():
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument('--db', type=Path, required=True)
-    args = p.parse_args()
-
-    model = Model(db_path=args.db)
-    for t in model.iter_threads():
+def demo(dal: DAL):
+    for t in dal.iter_threads():
         msgs = list(t.iter_messages())
-        print(f"Thread {t.name}: {len(msgs)} messages")
+        print(f"Conversation with {t.name}: {len(msgs)} messages")
 
 
 if __name__ == '__main__':
-    main()
+    import dal_helper
+    dal_helper.main(DAL=DAL, demo=demo, single_source=True)
