@@ -229,10 +229,10 @@ def run(*, cookies: str, db: Path):
 
 def main():
     logger = get_logger()
-    from kython.klogging import setup_logzero
-    setup_logzero(logger, level=logging.DEBUG) # TODO FIXME remove
-    setup_logzero(logging.getLogger('backoff'), level=logging.DEBUG)
-    # logging.basicConfig(level=logging.DEBUG)
+    # from kython.klogging import setup_logzero
+    # setup_logzero(logger, level=logging.DEBUG) # TODO FIXME remove
+    # setup_logzero(logging.getLogger('backoff'), level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     parser = make_parser()
     args = parser.parse_args()
