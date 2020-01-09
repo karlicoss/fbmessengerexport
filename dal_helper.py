@@ -37,17 +37,17 @@ def make_parser(single_source=False):
 
     p.epilog = """
 You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
+I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
 
 - main usecase is to be imported as python module to allow for programmatic access to your data.
 
-  You can find some inspiration in [[https://github.com/karlicoss/my][=my.=]] package that I'm using as an API to all my personal data.
+  You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
 
 - to test it against your export, simply run: ~./dal.py --source /path/to/export~
 
 - you can also try it interactively: ~./dal.py --source /path/to/export --interactive~
 
 """
-    # TODO add docs on motivation behind DAL?
     return p
 
 

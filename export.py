@@ -206,7 +206,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         db.check_fetched_all(thread)
 
 
-def run(*, cookies: str, db_path: Path):
+def run(*, cookies: str, db: Path):
     logger = get_logger()
     uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
     client = Client(
@@ -217,9 +217,9 @@ def run(*, cookies: str, db_path: Path):
         session_cookies=json.loads(cookies),
     )
 
-    db = ExportDb(db_path)
+    edb = ExportDb(db)
 
-    errors = list(process_all(client=client, db=db))
+    errors = list(process_all(client=client, db=edb))
     if len(errors) > 0:
         logger.error('Had errors during processing')
         sys.exit(1)
@@ -243,8 +243,8 @@ def main():
 
     params = args.params
 
-    db_path = args.db_path; assert db_path is not None
-    run(cookies=params['cookies'], db_path=db_path)
+    db = args.db; assert db is not None
+    run(cookies=params['cookies'], db=db)
 
 
 def make_parser():
@@ -255,7 +255,7 @@ def make_parser():
         parser=parser,
         params=['cookies'],
     )
-    parser.add_argument('--db-path', type=Path, help='Path to result sqlite database')
+    parser.add_argument('--db', type=Path, help='Path to result sqlite database')
     parser.add_argument('--login', action='store_true', help='Pass when using for the first time to login and get cookies')
     return parser
 

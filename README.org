@@ -1,4 +1,4 @@
-Export your personal Facebook chat/Messenger data.
+Export your personal Facebook chat/Messenger data in an sqlite database.
 
 * Setting up
 1. =pip3 install --user requirements.txt=
@@ -26,7 +26,14 @@ Export your personal Facebook chat/Messenger data.
 * Exporting
 
 #+begin_src python :results drawer :exports results 
-import export; return export.make_parser().epilog
+  import export
+  ep = export.make_parser().epilog
+  # meh, but works..
+  lines = [
+   l if './export.py' not in l else l + ' --db /path/to/export.sqlite'
+   for l in ep.splitlines() 
+  ]
+  return '\n'.join(lines)
 #+end_src
 
 #+RESULTS:
@@ -42,13 +49,13 @@ Usage:
 
 After that, use:
 
-: ./export.py --secrets /path/to/secrets.py
+: ./export.py --secrets /path/to/secrets.py --db /path/to/export.sqlite
 
 That way you type less and have control over where you keep your plaintext secrets.
 
 *Alternatively*, you can pass parameters directly, e.g.
 
-: ./export.py --cookies <cookies>
+: ./export.py --cookies <cookies> --db /path/to/export.sqlite
 
 However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
     
@@ -65,10 +72,11 @@ import dal_helper; return dal_helper.make_parser().epilog
 :results:
 
 You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
+I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
 
 - main usecase is to be imported as python module to allow for programmatic access to your data.
 
-  You can find some inspiration in [[https://github.com/karlicoss/my][=my.=]] package that I'm using as an API to all my personal data.
+  You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
 
 - to test it against your export, simply run: ~./dal.py --source /path/to/export~
 
