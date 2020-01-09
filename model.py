@@ -8,8 +8,9 @@ import dataset # type: ignore
 
 
 class Message:
-    def __init__(self, row: Dict) -> None:
+    def __init__(self, row: Dict, thread: 'Thread') -> None:
         self.row = row
+        self.thread = thread
 
     @property
     def dt(self) -> datetime:
@@ -20,8 +21,6 @@ class Message:
     def text(self) -> str:
         # TODO opetional??
         return self.row['text']
-
-
 
 
 class Thread:
@@ -44,7 +43,7 @@ class Thread:
 
     def iter_messages(self, order_by='timestamp') -> Iterator[Message]:
         for row in self.mt.find(thread_id=self.thread_id, order_by=order_by):
-            yield Message(row)
+            yield Message(row=row, thread=self)
 
 
 class Model:
@@ -54,7 +53,6 @@ class Model:
         self.mt = self.db['messages']
 
     def iter_threads(self, order_by='name') -> Iterator[Thread]:
-        # TODO FIXME order_by??
         for row in self.tt.all(order_by=order_by):
             yield Thread(mt=self.mt, row=row)
 

@@ -24,6 +24,7 @@ def delk(d, key: str):
     if key in d:
         del d[key]
 
+
 class ExportDb:
     def __init__(self, db_path: Path) -> None:
         self.db = dataset.connect('sqlite:///{}'.format(db_path))
@@ -233,20 +234,59 @@ def main():
     setup_logzero(logging.getLogger('backoff'), level=logging.DEBUG)
     # logging.basicConfig(level=logging.DEBUG)
 
-    # TODO move setup_logger there as well?
-    from export_helper import setup_parser
-    parser = argparse.ArgumentParser("Tool to export your personal Facebook chat/Messenger data")
-    setup_parser(parser=parser, params=['cookies'])
-    parser.add_argument('--db-path', type=Path, help='Path to result sqlite database with', required=True)
+    parser = make_parser()
     args = parser.parse_args()
+
+    if args.login:
+        do_login()
+        return
 
     params = args.params
 
-    run(cookies=params['cookies'], db_path=args.db_path)
+    db_path = args.db_path; assert db_path is not None
+    run(cookies=params['cookies'], db_path=db_path)
+
+
+def make_parser():
+    # TODO move setup_logger there as well?
+    from export_helper import setup_parser, Parser
+    parser = Parser('Export your personal Facebook chat/Messenger data')
+    setup_parser(
+        parser=parser,
+        params=['cookies'],
+    )
+    parser.add_argument('--db-path', type=Path, help='Path to result sqlite database')
+    parser.add_argument('--login', action='store_true', help='Pass when using for the first time to login and get cookies')
+    return parser
+
+
+def login(*, email: str, password: str):
+    # TODO check old cookies first??
+    uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
+    client = fbchat.Client(email=email, password=password, user_agent=uag)
+    return client.getSession()
+
+
+# TODO hmm, 'app password' didn't work
+def do_login():
+    """
+    Facebook doesn't have an API, so you'll have to use cookies.
+
+    Ideally this step needs to be done once, after that just use cookies to access your data.
+
+    Note that this step might prompt you for two factor auth.
+
+    Also Facebook will likely *notify you about unusual login*, so make sure to approve it in
+    [[https://www.facebook.com/settings?tab=security][security settings]].
+    """
+    import getpass
+    email = input('email:')
+    password = getpass.getpass("password (won't be stored):")
+    # TODO FIXME input instead??
+    cookies = login(email=email, password=password)
+    print("Your cookies string (put it in 'cookies' variable in secrets.py):")
+    print("'{}'".format(json.dumps(cookies)))
+
 
 if __name__ == '__main__':
     main()
-
-
-# TODO mention: asks for 2FA
-# TODO shit, asks for 2FA again. wonder if can preserve session??

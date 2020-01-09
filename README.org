@@ -1,7 +1,55 @@
-Note: Facebook will likely modify you about an unusual login.
+Export your personal Facebook chat/Messenger data.
 
-It might TODO user-agent?
+* Setting up
+1. =pip3 install --user requirements.txt=
+2. Login and get cookies: ~./export.py --login~
 
-https://www.facebook.com/settings?tab=security
+   #+begin_src python :results drawer :exports results
+   import export; return export.do_login.__doc__
+   #+end_src
 
-TODO hmm, app password didn't work
+   #+RESULTS:
+   :results:
+
+       Facebook doesn't have an API, so you'll have to use cookies.
+
+       Ideally this step needs to be done once, after that just use cookies to access your data.
+
+       Note that this step might prompt you for two factor auth.
+
+       Also Facebook will likely *notify you about unusual login*, so make sure to approve it in
+       [[https://www.facebook.com/settings?tab=security][security settings]].
+
+   :end:
+
+
+* Exporting
+
+#+begin_src python :results drawer :exports results 
+import export; return export.make_parser().epilog
+#+end_src
+
+#+RESULTS:
+:results:
+
+Usage:
+
+*Recommended*: create =secrets.py= keeping your api parameters, e.g.:
+
+
+: cookies = "COOKIES"
+
+
+After that, use:
+
+: ./export.py --secrets /path/to/secrets.py
+
+That way you type less and have control over where you keep your plaintext tokens/passwords.
+
+*Alternatively*, you can pass parameters directly, e.g.
+
+: ./export.py --cookies <cookies>
+
+However, this is verbose and prone to leaking your keys in shell history.
+    
+:end:
