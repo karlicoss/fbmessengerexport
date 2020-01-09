@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 import sys
-from typing import Sequence, Dict, Any, Optional
+from typing import Sequence, Dict, Any, Optional, Union
 
 
 Json = Dict[str, Any]
@@ -122,3 +122,36 @@ However, this is verbose and prone to leaking your keys/tokens/passwords in shel
         nargs='?',
         help='Optional path where exported data will be dumped, otherwise printed to stdout',
     )
+
+
+import logging
+def setup_logger(logger: Union[str, logging.Logger], level='DEBUG', **kwargs):
+    """
+    Wrapper to simplify logging setup.
+    """
+    def mklevel(level: Union[int, str]) -> int:
+        if isinstance(level, str):
+            return getattr(logging, level)
+        else:
+            return level
+    lvl = mklevel(level)
+
+    if isinstance(logger, str):
+        logger = logging.getLogger(logger)
+
+    try:
+        # try logzero first, so user gets nice colored logs
+        import logzero  # type: ignore
+    except ModuleNotFoundError:
+        import warnings
+        warnings.warn("You might want to install 'logzero' for nice colored logs")
+
+        # ugh. why does it have to be so verbose?
+        logger.setLevel(lvl)
+        ch = logging.StreamHandler()
+        ch.setLevel(lvl)
+        FMT = '[%(levelname)s %(name)s %(asctime)s %(filename)s:%(lineno)d] %(message)s'
+        ch.setFormatter(logging.Formatter(FMT))
+        logger.addHandler(ch)
+    else:
+        logzero.setup_logger(logger.name, level=lvl)

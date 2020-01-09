@@ -229,10 +229,9 @@ def run(*, cookies: str, db: Path):
 
 def main():
     logger = get_logger()
-    # from kython.klogging import setup_logzero
-    # setup_logzero(logger, level=logging.DEBUG) # TODO FIXME remove
-    # setup_logzero(logging.getLogger('backoff'), level=logging.DEBUG)
-    logging.basicConfig(level=logging.DEBUG)
+    from export_helper import setup_logger
+    setup_logger(logger, level='DEBUG')
+    setup_logger('backoff', level='DEBUG')
 
     parser = make_parser()
     args = parser.parse_args()
@@ -248,7 +247,6 @@ def main():
 
 
 def make_parser():
-    # TODO move setup_logger there as well?
     from export_helper import setup_parser, Parser
     parser = Parser('Export your personal Facebook chat/Messenger data')
     setup_parser(
