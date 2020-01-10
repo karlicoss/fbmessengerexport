@@ -3,6 +3,9 @@ Export your personal Facebook chat/Messenger data in an sqlite database.
 Main difference from "Download your information" export is that this tool can be run automatically and doesn't require remembering go onto Facebook website, reentering password, downloading archive, etc.
 
 Note that at the moment it exports *text only*, images or videos are not exported.
+I recommend checking the database after initial export to make sure it contains everything you want from the tool! 
+I cleaned up some things I assumed weren't useful from raw responses, but I could be misinterpreting something as I'm not a heavy Facebook user.
+Feel free to open a github issue if you think something about storage should be changed.
 
 * Setting up
 1. =pip3 install --user -r requirements.txt=

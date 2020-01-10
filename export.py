@@ -35,7 +35,11 @@ class ExportDb:
     def insert_thread(self, thread: Thread) -> None:
         dd = vars(thread)
         delk(dd, 'type') # user vs group? fine without it for now
-        # TODO could remove remaining crap, e.g. color/emoji/plan, but for now don't bother
+      
+        col = 'color'
+        c = dd[col]
+        if c is not None:
+            dd[col] = c.value # map from enum to value
 
         delk(dd, 'nicknames')
         delk(dd, 'admins')
