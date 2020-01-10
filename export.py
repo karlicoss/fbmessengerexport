@@ -169,8 +169,12 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
     logger = get_logger()
 
-    # TODO what is ThreadLocation.PENDING?
-    locs = [ThreadLocation.INBOX, ThreadLocation.ARCHIVED]
+    locs = [
+        ThreadLocation.ARCHIVED, # not sure what that means.. apparently groups you don't have access to anymore?
+        ThreadLocation.INBOX,    # most of messages are here.
+        ThreadLocation.OTHER,    # apparently, keeps hidden conversations? Although doesn't returl all of them for me...
+        # ThreadLocation.PENDING, # what is it???
+    ]
     threads: List[Thread] = []
     for loc in locs:
         logger.debug('fetching threads: %s', loc)
