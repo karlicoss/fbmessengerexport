@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections import OrderedDict
 from pathlib import Path
 import itertools
 import json
@@ -50,7 +51,7 @@ class ExportDb:
         lts = 'last_message_timestamp'
         dd[lts] = int(dd[lts]) # makes more sense for queries?
 
-        self.ttable.upsert(dd, ['uid'])
+        self.ttable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
     def insert_message(self, thread: Thread, message: Message) -> None:
         dd = vars(message)
@@ -73,7 +74,7 @@ class ExportDb:
 
         dd['thread_id'] = thread.uid
 
-        self.mtable.upsert(dd, ['uid'])
+        self.mtable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
     def get_oldest_and_newest(self, thread: Thread) -> Optional[Tuple[int, int]]:
         if 'messages' not in self.db.tables:
