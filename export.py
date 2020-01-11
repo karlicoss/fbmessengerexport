@@ -159,11 +159,16 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
             del chunk[0]
 
         if len(chunk) == 0:
+            # TODO uhoh.. careful if chunk size is 1?
             break # hopefully means that there are no more messages to fetch?
 
-        yield from chunk
-        done += len(chunk)
-        last_msg = chunk[-1]
+        for m in chunk:
+            if last_msg is not None:
+                # paranoid assert because we rely on message ordering
+                assert int(last_msg.timestamp) >= int(m.timestamp)
+            yield m
+            last_msg = m
+            done += 1
 
 
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
@@ -208,7 +213,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
                 mts = int(r.timestamp)
                 if newest is not None and oldest is not None and newest > mts > oldest:
                     logger.info('Fetched everything for %s, interrupting', thread.name)
-                    break # interrupt, thus interrupting fetching unnecessary data
+                    break # interrupt, thus preventing from fetching unnecessary data
                 db.insert_message(thread, r)
 
         # TODO not sure if that should be more defensive?
