@@ -138,6 +138,7 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
     logger = get_logger()
     tid = thread.uid
     tname = thread.name
+    logger.info('thread %s: fetching messages before %s', tname, before)
 
     last_ts: int = thread.last_message_timestamp if before is None else before
 
@@ -197,24 +198,35 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
             newest = None
         else:
             oldest, newest = on
-        # the assumption is that everything in [newest, oldest] is already fetched
+        # sadly, api only allows us to fetch messages from newest to oldest
+        # that means that we have no means of keeping contiguous chunk of messages in the database,
+        # and 'extending' it both ways
+        # we can do extend if to the left (i.e. to the oldest)
+        # but all newer messages have to be accumulated and written in a single transaction
 
-        # so we want to fetch [oldest: ] in case we've been interrupted before
+        # this would handle both 'first import' properly and 'extending' oldest to the left if it wasn't None
         iter_oldest = iter_thread(client=client, thread=thread, before=oldest)
-
-        # and we want to fetch everything until we encounter newest
-        iter_newest = iter_thread(client=client, thread=thread, before=None)
-
-        for r in itertools.chain(iter_oldest, iter_newest):
+        for r in iter_oldest:
             if isinstance(r, Exception):
                 logger.exception(r)
                 yield r
             else:
-                mts = int(r.timestamp)
-                if newest is not None and oldest is not None and newest > mts > oldest:
-                    logger.info('Fetched everything for %s, interrupting', thread.name)
-                    break # interrupt, thus preventing from fetching unnecessary data
                 db.insert_message(thread, r)
+
+        if newest is not None:
+            # and we want to fetch everything until we encounter newest
+            iter_newest = iter_thread(client=client, thread=thread, before=None)
+            with db.db: # transaction. that's *necessary* for new messages to extend fetched data to the right
+                for r in iter_newest:
+                    if isinstance(r, Exception):
+                        logger.exception(r)
+                        yield r
+                    else:
+                        mts = int(r.timestamp)
+                        if newest > mts:
+                            logger.info('%s: fetched all new messages (up to %s)', thread.name, newest)
+                            break # interrupt, thus preventing from fetching unnecessary data
+                    db.insert_message(thread, r)
 
         # TODO not sure if that should be more defensive?
         db.check_fetched_all(thread)
