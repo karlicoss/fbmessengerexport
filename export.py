@@ -90,7 +90,7 @@ class ExportDb:
             return None
         return int(mints), int(maxts)
 
-    def check_fetched_all(self, thread: Thread) -> None:
+    def check_fetched_all(self, thread: Thread) -> Iterator[Exception]:
         if 'messages' not in self.db.tables:
             return # meh, but works I guess
 
@@ -149,7 +149,13 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
 
         before = last_ts if last_msg is None else last_msg.timestamp
         # TODO make this defensive? implement some logic for fetching gaps
-        chunk = fetchThreadMessagesRetry(client, tid, before=before, limit=FETCH_THREAD_MESSAGES_LIMIT)
+        try:
+            chunk = fetchThreadMessagesRetry(client, tid, before=before, limit=FETCH_THREAD_MESSAGES_LIMIT)
+        except Exception as e:
+            # could happen if there is some internal fbchat error. Not much we can do so we just bail.
+            yield e
+            break
+            
         if len(chunk) == 0:
             # not sure if can actually happen??
             yield RuntimeError("Expected non-empty chunk")
@@ -204,12 +210,16 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         # we can do extend if to the left (i.e. to the oldest)
         # but all newer messages have to be accumulated and written in a single transaction
 
+        def error(e: Exception) -> Iterator[Exception]:
+            logger.error('While processing thread %s', thread)
+            logger.exception(e)
+            yield e
+
         # this would handle both 'first import' properly and 'extending' oldest to the left if it wasn't None
         iter_oldest = iter_thread(client=client, thread=thread, before=oldest)
         for r in iter_oldest:
             if isinstance(r, Exception):
-                logger.exception(r)
-                yield r
+                yield from error(r)
             else:
                 db.insert_message(thread, r)
 
@@ -219,17 +229,16 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
             with db.db: # transaction. that's *necessary* for new messages to extend fetched data to the right
                 for r in iter_newest:
                     if isinstance(r, Exception):
-                        logger.exception(r)
-                        yield r
+                        yield from error(r)
                     else:
                         mts = int(r.timestamp)
                         if newest > mts:
                             logger.info('%s: fetched all new messages (up to %s)', thread.name, newest)
                             break # interrupt, thus preventing from fetching unnecessary data
-                    db.insert_message(thread, r)
+                        db.insert_message(thread, r)
 
-        # TODO not sure if that should be more defensive?
-        db.check_fetched_all(thread)
+        # TODO not if should be defensive? could be an indication of a serious issue...
+        yield from db.check_fetched_all(thread)
 
 
 def run(*, cookies: str, db: Path):
@@ -246,8 +255,9 @@ def run(*, cookies: str, db: Path):
     edb = ExportDb(db)
 
     errors = list(process_all(client=client, db=edb))
+
     if len(errors) > 0:
-        logger.error('Had errors during processing')
+        logger.error('Had %d errors during export', len(errors))
         sys.exit(1)
     else:
         logger.info('Success!')
