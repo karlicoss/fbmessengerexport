@@ -98,7 +98,7 @@ class ExportDb:
         [res] = list(self.db.query(query))
         cnt = res['COUNT(*)']
         if cnt != thread.message_count:
-            raise RuntimeError('Expected {} messages in thread {}, got {}'.format(thread.message_count, thread.name, cnt))
+            yield RuntimeError('Expected {} messages in thread {}, got {}'.format(thread.message_count, thread.name, cnt))
 
 
 
