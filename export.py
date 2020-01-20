@@ -251,6 +251,8 @@ def run(*, cookies: str, db: Path):
         user_agent=uag,
         session_cookies=json.loads(cookies),
     )
+    patch_marketplace(client=client)
+    
 
     edb = ExportDb(db)
 
@@ -322,5 +324,32 @@ def do_login():
     print("'{}'".format(json.dumps(cookies)))
 
 
+def patch_marketplace(client):
+    """
+    Marketplace messages aren't handled by fbchat at the moment, this hack makes the client skip them
+    see https://github.com/carpedm20/fbchat/issues/408
+    """
+    logger = get_logger()
+
+    orig_fn = client.graphql_requests
+    def patched_graphql_requests(*queries, orig_fn=orig_fn):
+        results = orig_fn(*queries)
+        # patched = []
+        for r in results:
+            nodes = r.get("viewer", {}).get("message_threads", {}).get("nodes", [])
+            if len(nodes) == 0:
+                continue
+            good = [n for n in nodes if n.get("thread_type") != "MARKETPLACE"]
+            filtered_out = len(nodes) - len(good)
+            if filtered_out > 0:
+                # TODO would be nice to propagate the errors up properly and fail script with exit code 1?
+                logger.warning("Filtered out %d threads of type MARKETPLACE. See https://github.com/carpedm20/fbchat/issues/408", filtered_out)
+            r["viewer"]["message_threads"]["nodes"] = good
+        return results
+    client.graphql_requests = patched_graphql_requests
+
+
 if __name__ == '__main__':
     main()
+
+
