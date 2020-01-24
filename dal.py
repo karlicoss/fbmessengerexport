@@ -7,6 +7,14 @@ from typing import Collection, Dict, Iterator, List, Sequence, Union
 import dataset # type: ignore
 
 
+if __name__ == '__main__':
+    # see dal_helper.setup for the explanation
+    import dal_helper # type: ignore[import]
+    dal_helper.fix_imports(globals())
+
+from . import dal_helper  # type: ignore[no-redef]
+
+
 class Message:
     def __init__(self, row: Dict, thread: 'Thread') -> None:
         self.row = row
@@ -64,5 +72,4 @@ def demo(dal: DAL):
 
 
 if __name__ == '__main__':
-    import dal_helper
     dal_helper.main(DAL=DAL, demo=demo, single_source=True)
