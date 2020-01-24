@@ -1,4 +1,10 @@
-Export your personal Facebook chat/Messenger data in an sqlite database.
+#+begin_src python :results drawer :exports results
+import export; return export.make_parser().prog
+#+end_src
+
+#+RESULTS:
+:results:
+Export your personal Facebook chat/Messenger data into an sqlite database.
 
 Main difference from "Download your information" export is that this tool can be run automatically and doesn't require remembering go onto Facebook website, reentering password, downloading archive, etc.
 
@@ -6,6 +12,8 @@ Note that at the moment it exports *text only*, images or videos are not exporte
 I recommend checking the database after initial export to make sure it contains everything you want from the tool! 
 I cleaned up some things I assumed weren't useful from raw responses, but I could be misinterpreting something as I'm not a heavy Facebook user.
 Feel free to open a github issue if you think something about storage should be changed.
+:end:
+
 
 * Setting up
 1. =pip3 install --user -r requirements.txt=
@@ -65,6 +73,10 @@ That way you type less and have control over where you keep your plaintext secre
 : ./export.py --cookies <cookies> --db /path/to/export.sqlite
 
 However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
+
+    
+
+I *highly* recommend checking exported files at least once just to make sure they contain everything you expect from your export. If not, please feel free to ask or raise an issue!
     
 :end:
 
@@ -81,7 +93,7 @@ import dal_helper; return dal_helper.make_parser().epilog
 You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
 I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
 
-- main usecase is to be imported as python module to allow for programmatic access to your data.
+- main usecase is to be imported as python module to allow for *programmatic access* to your data.
 
   You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
 

@@ -98,10 +98,16 @@ That way you type less and have control over where you keep your plaintext secre
 : ./export.py {paramss}
 
 However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
+
     '''
 
     if extra_usage is not None:
         parser.epilog += extra_usage
+
+    parser.epilog += '''
+
+I *highly* recommend checking exported files at least once just to make sure they contain everything you expect from your export. If not, please feel free to ask or raise an issue!
+    '''
 
     parser.add_argument(
         '--secrets',
@@ -142,6 +148,7 @@ def setup_logger(logger: Union[str, logging.Logger], level='DEBUG', **kwargs):
     try:
         # try logzero first, so user gets nice colored logs
         import logzero  # type: ignore
+        # TODO meh, default formatter shorthands logging levels making it harder to search errors..
     except ModuleNotFoundError:
         import warnings
         warnings.warn("You might want to install 'logzero' for nice colored logs")
