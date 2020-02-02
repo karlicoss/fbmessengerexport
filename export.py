@@ -33,6 +33,7 @@ class ExportDb:
         self.ttable = self.db.get_table('threads' , primary_id='uid', primary_type=self.db.types.text)
         self.mtable = self.db.get_table('messages', primary_id='uid', primary_type=self.db.types.text)
 
+    # TODO add explanations to readme of all deleted stuff?
     def insert_thread(self, thread: Thread) -> None:
         dd = vars(thread)
         delk(dd, 'type') # user vs group? fine without it for now
@@ -50,6 +51,8 @@ class ExportDb:
 
         lts = 'last_message_timestamp'
         dd[lts] = int(dd[lts]) # makes more sense for queries?
+    
+        delk(dd, 'plan') # it's unclear, why is this baked into the plan? and what if the plan changes?
 
         self.ttable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
