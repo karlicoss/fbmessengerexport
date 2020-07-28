@@ -56,7 +56,10 @@ class Thread:
 
 class DAL:
     def __init__(self, db_path: Union[Path, str]) -> None:
-        self.db = dataset.connect('sqlite:///{}'.format(db_path))
+        import sqlite3
+        # https://www.sqlite.org/draft/uri.html#uriimmutable
+        creator = lambda: sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
+        self.db = dataset.connect('sqlite:///', engine_kwargs={'creator': creator})
         self.tt = self.db['threads']
         self.mt = self.db['messages']
 
