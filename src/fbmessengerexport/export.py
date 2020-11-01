@@ -18,12 +18,13 @@ fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')
 ###
 from fbchat import Client, Thread, Message, ThreadLocation
 
+from .exporthelpers import logging_helper
 
 T = TypeVar('T')
 Res = Union[T, Exception]
 
-def get_logger():
-    return logging.getLogger('fbchatexport')
+
+logger = logging_helper.logger('fbchatexport')
 
 
 def delk(d, key: str):
@@ -129,7 +130,6 @@ def fetchThreadMessagesRetry(client, *args, **kwargs):
     except fbchat.FBchatFacebookError as e:
         # eh, happens sometimes for no apparent reason? after a while goes away?
         # fbchat._exception.FBchatFacebookError: GraphQL error #None: Errors while executing operation "MessengerThreads": At Query.message_thread:MessageThread.messages:MessagesOfThreadConnection.page_info: Field implementation threw an exception. Check your server logs for more information. / None
-        logger = get_logger()
         if 'Field implementation threw an exception' in str(e):
             # TODO not sure if this is better or relying on 'backoff' logger?
             # logger.exception(e)
@@ -143,7 +143,6 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
     """
     Returns messages in thread (from newer to older)
     """
-    logger = get_logger()
     tid = thread.uid
     tname = thread.name
     logger.info('thread %s: fetching messages before %s', tname, before)
@@ -187,7 +186,6 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
 
 
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
-    logger = get_logger()
 
     locs = [
         ThreadLocation.ARCHIVED, # not sure what that means.. apparently groups you don't have access to anymore?
@@ -250,7 +248,6 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
 
 
 def run(*, cookies: str, db: Path):
-    logger = get_logger()
     uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
     client = Client(
         # rely on cookies for login
@@ -273,11 +270,8 @@ def run(*, cookies: str, db: Path):
         logger.info('Success!')
 
 
-def main():
-    logger = get_logger()
-    from export_helper import setup_logger
-    setup_logger(logger, level='DEBUG')
-    setup_logger('backoff', level='DEBUG')
+def main() -> None:
+    logging_helper.setup_logger('backoff', level='DEBUG')
 
     parser = make_parser()
     args = parser.parse_args()
@@ -293,7 +287,7 @@ def main():
 
 
 def make_parser():
-    from export_helper import setup_parser, Parser
+    from .exporthelpers.export_helper import setup_parser, Parser
     parser = Parser('''
 Export your personal Facebook chat/Messenger data into an sqlite database.
 
@@ -346,7 +340,6 @@ def patch_marketplace(client):
     Marketplace messages aren't handled by fbchat at the moment, this hack makes the client skip them
     see https://github.com/carpedm20/fbchat/issues/408
     """
-    logger = get_logger()
 
     orig_fn = client.graphql_requests
     def patched_graphql_requests(*queries, orig_fn=orig_fn):

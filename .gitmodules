@@ -1,0 +1,3 @@
+[submodule "src/fbmessengerexport/exporthelpers"]
+	path = src/fbmessengerexport/exporthelpers
+	url = https://github.com/karlicoss/exporthelpers.git

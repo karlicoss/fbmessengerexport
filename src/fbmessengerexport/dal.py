@@ -2,17 +2,13 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Collection, Dict, Iterator, List, Sequence, Union
+from typing import Collection, Dict, Iterator, List, Sequence
 
 import dataset # type: ignore
 
 
-if __name__ == '__main__':
-    # see dal_helper.setup for the explanation
-    import dal_helper # type: ignore[import]
-    dal_helper.fix_imports(globals())
-
-from . import dal_helper  # type: ignore[no-redef]
+from .exporthelpers import dal_helper
+from .exporthelpers.dal_helper import PathIsh
 
 
 class Message:
@@ -22,12 +18,13 @@ class Message:
 
     @property
     def dt(self) -> datetime:
-        # TODO FIXME timezone??
-        return datetime.utcfromtimestamp(self.row['timestamp'] / 1000)
+        # ugh. feels like that it's returning timestamps with respect to your 'current' timezone???
+        # this might give a clue.. https://github.com/fbchat-dev/fbchat/pull/472/files
+        return datetime.fromtimestamp(self.row['timestamp'] / 1000)
 
     @property
     def text(self) -> str:
-        # TODO opetional??
+        # TODO optional??
         return self.row['text']
 
 
@@ -38,10 +35,9 @@ class Thread:
 
     @property
     def name(self) -> str:
-        # TODO cache?
         name = self.row['name']
         if name is None:
-            # TODO FIXME eh. must be group chat??
+            # TODO eh. must be group chat??
             return self.thread_id
         return name
 
@@ -55,7 +51,7 @@ class Thread:
 
 
 class DAL:
-    def __init__(self, db_path: Union[Path, str]) -> None:
+    def __init__(self, db_path: PathIsh) -> None:
         import sqlite3
         # https://www.sqlite.org/draft/uri.html#uriimmutable
         creator = lambda: sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)

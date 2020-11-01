@@ -1,5 +1,5 @@
-#+begin_src python :results drawer :exports results
-import export; return export.make_parser().prog
+#+begin_src python :dir src :results drawer :exports results
+import fbmessengerexport.export as E; return E.make_parser().prog
 #+end_src
 
 #+RESULTS:
@@ -16,11 +16,13 @@ Feel free to open a github issue if you think something about storage should be 
 
 
 * Setting up
-1. =pip3 install --user -r requirements.txt=
+1. The easiest way is =pip3 install --user git+https://github.com/karlicoss/fbmessengerexport=.
+
+   Alternatively, use =git clone --recursive=, or =git pull && git submodules update --init=. After that, you can use =pip3 install --editable=.
 2. Login and get cookies: ~./export.py --login~
 
-   #+begin_src python :results drawer :exports results
-   import export; return export.do_login.__doc__
+   #+begin_src python :dir src :results drawer :exports results
+   import fbmessengerexport.export; return export.do_login.__doc__
    #+end_src
 
    #+RESULTS:
@@ -40,9 +42,9 @@ Feel free to open a github issue if you think something about storage should be 
 
 * Exporting
 
-#+begin_src python :results drawer :exports results 
-  import export
-  ep = export.make_parser().epilog
+#+begin_src python :dir src :results drawer :exports results
+  import fbmessengerexport.export as E
+  ep = E.make_parser().epilog
   # meh, but works..
   lines = [
    l if './export.py' not in l else l + ' --db /path/to/export.sqlite'
@@ -64,41 +66,41 @@ Usage:
 
 After that, use:
 
-: ./export.py --secrets /path/to/secrets.py --db /path/to/export.sqlite
+: python3 -m fbmessengerexport.export --secrets /path/to/secrets.py
 
 That way you type less and have control over where you keep your plaintext secrets.
 
 *Alternatively*, you can pass parameters directly, e.g.
 
-: ./export.py --cookies <cookies> --db /path/to/export.sqlite
+: python3 -m fbmessengerexport.export --cookies <cookies>
 
 However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
 
-    
+
 
 I *highly* recommend checking exported files at least once just to make sure they contain everything you expect from your export. If not, please feel free to ask or raise an issue!
-    
+
 :end:
 
 
 * Using data
   
-#+begin_src python :results drawer :exports results 
-import dal_helper; return dal_helper.make_parser().epilog
+#+begin_src python :dir src  :results drawer :exports results
+import fbmessengerexport.exporthelpers.dal_helper as D; return D.make_parser().epilog
 #+end_src
 
 #+RESULTS:
 :results:
 
-You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
+You can use =fbmessengerexport.dal= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
 I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
 
 - main usecase is to be imported as python module to allow for *programmatic access* to your data.
 
   You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
 
-- to test it against your export, simply run: ~./dal.py --source /path/to/export~
+- to test it against your export, simply run: ~python3 -m fbmessengerexport.dal --source /path/to/export~
 
-- you can also try it interactively: ~./dal.py --source /path/to/export --interactive~
+- you can also try it interactively: ~python3 -m fbmessengerexport.dal --source /path/to/export --interactive~
 
 :end:
