@@ -19,7 +19,10 @@ Feel free to open a github issue if you think something about storage should be 
 1. The easiest way is =pip3 install --user git+https://github.com/karlicoss/fbmessengerexport=.
 
    Alternatively, use =git clone --recursive=, or =git pull && git submodules update --init=. After that, you can use =pip3 install --editable=.
-2. Login and get cookies: ~./export.py --login~
+2. Login and get cookies: ~python3 -m fbmessengerexport.export --login --cookies ANYSTRING~
+
+   Note: on this step you need to pass an arbitrary string as ~--cookies~ parameter, just to make the argument parser happy.
+   After login use either the real cookie you got, or the ~--secrets~ parameter (more on that below).
 
    #+begin_src python :dir src :results drawer :exports results
    import fbmessengerexport.export; return export.do_login.__doc__
