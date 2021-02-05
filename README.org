@@ -9,7 +9,7 @@ Export your personal Facebook chat/Messenger data into an sqlite database.
 Main difference from "Download your information" export is that this tool can be run automatically and doesn't require remembering go onto Facebook website, reentering password, downloading archive, etc.
 
 Note that at the moment it exports *text only*, images or videos are not exported.
-I recommend checking the database after initial export to make sure it contains everything you want from the tool! 
+I recommend checking the database after initial export to make sure it contains everything you want from the tool!
 I cleaned up some things I assumed weren't useful from raw responses, but I could be misinterpreting something as I'm not a heavy Facebook user.
 Feel free to open a github issue if you think something about storage should be changed.
 :end:
@@ -51,7 +51,7 @@ Feel free to open a github issue if you think something about storage should be 
   # meh, but works..
   lines = [
    l if './export.py' not in l else l + ' --db /path/to/export.sqlite'
-   for l in ep.splitlines() 
+   for l in ep.splitlines()
   ]
   return '\n'.join(lines)
 #+end_src
@@ -64,12 +64,12 @@ Usage:
 *Recommended*: create =secrets.py= keeping your api parameters, e.g.:
 
 
-: cookies = "COOKIES"
+: cookies = '{"c_user": "100000000000000", "datr": "dddddddddddddddddddddddd", "fr": "dlaskjdlakjsldkjL.Alksajdlkjaslkdjalskjdlkajs.lakds1.S-.AAA.0.0.lsakdd.asdasdadasd", "noscript": "1", "sb": "alsjdlasdklajsdlkajsdlad", "xs": "lkajsdalskjdalskjdw%dsd%lksjdlaksjld%lskjdl%lksajds"}'
 
 
 After that, use:
 
-: python3 -m fbmessengerexport.export --secrets /path/to/secrets.py
+: python3 -m fbmessengerexport.export --secrets /path/to/secrets.py --db /path/to/database/db
 
 That way you type less and have control over where you keep your plaintext secrets.
 
@@ -87,7 +87,7 @@ I *highly* recommend checking exported files at least once just to make sure the
 
 
 * Using data
-  
+
 #+begin_src python :dir src  :results drawer :exports results
 import fbmessengerexport.exporthelpers.dal_helper as D; return D.make_parser().epilog
 #+end_src
