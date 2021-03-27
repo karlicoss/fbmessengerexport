@@ -1,3 +1,6 @@
+*Warning*: the library this script is using to talk to Facebook API (fbchat) is unmaintained at the moment, so you might experience problems with logging in (or be unable to). See https://github.com/fbchat-dev/fbchat/issues/638 and other issues for more info.
+
+
 #+begin_src python :dir src :results drawer :exports results
 import fbmessengerexport.export as E; return E.make_parser().prog
 #+end_src
