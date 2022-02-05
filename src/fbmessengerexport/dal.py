@@ -17,6 +17,10 @@ class Message:
         self.thread = thread
 
     @property
+    def id(self) -> str:
+        return self.row['id']
+
+    @property
     def dt(self) -> datetime:
         # ugh. feels like that it's returning timestamps with respect to your 'current' timezone???
         # this might give a clue.. https://github.com/fbchat-dev/fbchat/pull/472/files
@@ -42,8 +46,13 @@ class Thread:
         return name
 
     @property
-    def thread_id(self) -> str:
+    def id(self) -> str:
         return self.row['uid']
+
+    @property
+    def thread_id(self) -> str:
+        # todo deprecate
+        return self.id
 
     def iter_messages(self, order_by='timestamp') -> Iterator[Message]:
         for row in self.mt.find(thread_id=self.thread_id, order_by=order_by):
