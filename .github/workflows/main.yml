@@ -7,19 +7,20 @@ on:
     tags: 'v[0-9]+.*' # only trigger on 'release' tags for PyPi
     # Ideally I would put this in the pypi job... but github syntax doesn't allow for regexes there :shrug:
     # P.S. fuck made up yaml DSLs.
-    # TODO cron?
+  pull_request: # needed to trigger on others' PRs
+  # Note that people who fork it need to go to "Actions" tab on their fork and click "I understand my workflows, go ahead and enable them".
   workflow_dispatch: # needed to trigger workflows manually
+  # todo cron?
 
-env:
-  # useful for scripts & sometimes tests to know
-  CI: true
 
 jobs:
   build:
     strategy:
       matrix:
-        platform: [ubuntu-latest]
-        python-version: [3.6, 3.7, 3.8]
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.7', '3.8', '3.9', '3.10']
+        # vvv just an example of excluding stuff from matrix
+        # exclude: [{platform: macos-latest, python-version: '3.6'}]
 
     runs-on: ${{ matrix.platform }}
 
@@ -27,22 +28,23 @@ jobs:
     # ugh https://github.com/actions/toolkit/blob/main/docs/commands.md#path-manipulation
     - run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-    - uses: actions/setup-python@v1
+    - uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: recursive
 
     # uncomment for SSH debugging
-    # - uses: mxschmitt/action-tmate@v2
+    # - uses: mxschmitt/action-tmate@v3
 
-    - run: .ci/run
+    # explicit bash command is necessary for Windows CI runner, otherwise it thinks it's cmd...
+    - run: bash .ci/run
 
-    - uses: actions/upload-artifact@v2
+    - if: matrix.platform == 'ubuntu-latest'  # no need to compute coverage for other platforms
+      uses: actions/upload-artifact@v2
       with:
-        name: .mypy-coverage
-        path: .mypy-coverage/
-      # restrict to a single python version, otherwise uploading fails
-      if: ${{ matrix.python-version == '3.8' }}
+        name: .coverage.mypy_${{ matrix.platform }}_${{ matrix.python-version }}
+        path: .coverage.mypy/
+
