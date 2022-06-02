@@ -18,7 +18,7 @@ class Message:
 
     @property
     def id(self) -> str:
-        return self.row['id']
+        return self.row['uid']
 
     @property
     def dt(self) -> datetime:
