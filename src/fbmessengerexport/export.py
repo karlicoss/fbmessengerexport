@@ -6,7 +6,7 @@ import itertools
 import json
 import logging
 import sys
-from typing import List, Iterator, Union, TypeVar, Optional, Tuple
+from typing import List, Iterator, Union, TypeVar, Optional, Tuple, Dict
 
 import dataset # type: ignore
 
@@ -27,9 +27,8 @@ Res = Union[T, Exception]
 logger = logging_helper.logger('fbchatexport')
 
 
-def delk(d, key: str):
-    if key in d:
-        del d[key]
+def delk(d: Dict, key: str) -> None:
+    d.pop(key, None)
 
 
 class ExportDb:
@@ -247,7 +246,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         yield from db.check_fetched_all(thread)
 
 
-def run(*, cookies: str, db: Path):
+def run(*, cookies: str, db: Path) -> None:
     uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
     client = Client(
         # rely on cookies for login
@@ -307,7 +306,7 @@ Feel free to open a github issue if you think something about storage should be 
     return parser
 
 
-def login(*, email: str, password: str):
+def login(*, email: str, password: str) -> str:
     # TODO check old cookies first??
     uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
     client = fbchat.Client(email=email, password=password, user_agent=uag)
@@ -315,7 +314,7 @@ def login(*, email: str, password: str):
 
 
 # TODO hmm, 'app password' didn't work
-def do_login():
+def do_login() -> None:
     """
     Facebook doesn't have an API, so you'll have to use cookies.
 
@@ -329,13 +328,13 @@ def do_login():
     import getpass
     email = input('email:')
     password = getpass.getpass("password (won't be stored):")
-    # TODO FIXME input instead??
+    # TODO use input() instead??
     cookies = login(email=email, password=password)
     print("Your cookies string (put it in 'cookies' variable in secrets.py):")
     print("'{}'".format(json.dumps(cookies)))
 
 
-def patch_marketplace(client):
+def patch_marketplace(client) -> None:
     """
     Marketplace messages aren't handled by fbchat at the moment, this hack makes the client skip them
     see https://github.com/carpedm20/fbchat/issues/408
