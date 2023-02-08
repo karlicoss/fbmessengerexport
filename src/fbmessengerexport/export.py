@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-import argparse
 from collections import OrderedDict
 from pathlib import Path
-import itertools
 import json
-import logging
 import sys
 from typing import List, Iterator, Union, TypeVar, Optional, Tuple, Dict
 
-import dataset # type: ignore
 
 import fbchat # type: ignore
 ### see https://github.com/fbchat-dev/fbchat/issues/615#issuecomment-710127001 
@@ -33,6 +29,9 @@ def delk(d: Dict, key: str) -> None:
 
 class ExportDb:
     def __init__(self, db_path: Path) -> None:
+        # FIXME dataset is broken (doesn't support sqlalchemy 2.0) -- need to switch to use something else
+        # however, fbmessengerexport isn't working at the moment anyway :(
+        import dataset # type: ignore
         self.db = dataset.connect('sqlite:///{}'.format(db_path))
         # TODO need to disconnect??
         self.ttable = self.db.get_table('threads' , primary_id='uid', primary_type=self.db.types.text)

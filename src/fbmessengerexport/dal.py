@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
+from contextlib import ContextDecorator
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Collection, Iterator, List, Sequence, Optional
-
-import dataset # type: ignore
-
+import sqlite3
+from typing import Iterator, Optional, NamedTuple
 
 from .exporthelpers import dal_helper
 from .exporthelpers.dal_helper import PathIsh, datetime_aware
 from .common import MessageRow, ThreadRow
 
 
-class Message:
-    def __init__(self, *, row: MessageRow, thread: Thread) -> None:
-        self.row = row
-        self.thread = thread
+class Message(NamedTuple):
+    row: MessageRow
+    thread: Thread
 
     @property
     def id(self) -> str:
@@ -34,10 +30,9 @@ class Message:
         return self.row['text']
 
 
-class Thread:
-    def __init__(self, *, mt: dataset.Table, row: ThreadRow) -> None:
-        self.row = row
-        self.mt = mt
+class Thread(NamedTuple):
+    db: sqlite3.Connection
+    row: ThreadRow
 
     @property
     def id(self) -> str:
@@ -57,28 +52,31 @@ class Thread:
         return self.id
 
     def iter_messages(self, order_by: str='timestamp') -> Iterator[Message]:
-        for row in self.mt.find(thread_id=self.thread_id, order_by=order_by):
+        for row in self.db.execute('SELECT * FROM messages WHERE thread_id=? ORDER BY ?', (self.thread_id, order_by)):
             yield Message(row=row, thread=self)
 
 
-class DAL:
+class DAL(ContextDecorator):
     def __init__(self, db_path: PathIsh) -> None:
-        import sqlite3
-        # https://www.sqlite.org/draft/uri.html#uriimmutable
-        creator = lambda: sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
-        self.db = dataset.connect('sqlite:///', engine_kwargs={'creator': creator})
-        self.tt = self.db['threads']
-        self.mt = self.db['messages']
+        self.db = sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
+        self.db.row_factory = sqlite3.Row
 
     def iter_threads(self, order_by: str='name') -> Iterator[Thread]:
-        for row in self.tt.all(order_by=order_by):
-            yield Thread(mt=self.mt, row=row)
+        for row in self.db.execute('SELECT * FROM threads ORDER BY ?', (order_by, )):
+            yield Thread(db=self.db, row=row)
+
+    def __enter__(self) -> DAL:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.db.close()
 
 
 def demo(dal: DAL) -> None:
-    for t in dal.iter_threads():
-        msgs = list(t.iter_messages())
-        print(f"Conversation with {t.name}: {len(msgs)} messages")
+    with dal:
+        for t in dal.iter_threads():
+            msgs = list(t.iter_messages())
+            print(f"Conversation with {t.name}: {len(msgs)} messages")
 
 
 if __name__ == '__main__':
