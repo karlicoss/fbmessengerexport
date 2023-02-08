@@ -27,7 +27,6 @@ def main() -> None:
 
         install_requires=[
             'fbchat',  # Facebook API
-            'dataset', # sqlite database handling
             'backoff', # retry helper
 
             # vvv example of git repo dependency
