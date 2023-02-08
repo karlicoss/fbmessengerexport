@@ -4,7 +4,7 @@
 from setuptools import setup, find_namespace_packages # type: ignore
 
 
-def main():
+def main() -> None:
     # works with both ordinary and namespace packages
     pkgs = find_namespace_packages('src')
     pkg = min(pkgs) # lexicographically smallest is the correct one usually?
