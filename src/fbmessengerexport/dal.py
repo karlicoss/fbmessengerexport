@@ -31,7 +31,6 @@ class Message(NamedTuple):
 
 
 class Thread(NamedTuple):
-    db: sqlite3.Connection
     row: ThreadRow
 
     @property
@@ -51,19 +50,30 @@ class Thread(NamedTuple):
         # todo deprecate
         return self.id
 
+
+class ThreadHelper(NamedTuple):
+    db: sqlite3.Connection
+    thread: Thread
+
     def iter_messages(self, order_by: str='timestamp') -> Iterator[Message]:
-        for row in self.db.execute('SELECT * FROM messages WHERE thread_id=? ORDER BY ?', (self.thread_id, order_by)):
-            yield Message(row=row, thread=self)
+        for row in self.db.execute('SELECT * FROM messages WHERE thread_id=? ORDER BY ?', (self.thread.id, order_by)):
+            yield Message(row=row, thread=self.thread)
+
+
+def _dict_factory(cursor, row):
+    fields = [column[0] for column in cursor.description]
+    return {key: value for key, value in zip(fields, row)}
 
 
 class DAL(ContextDecorator):
     def __init__(self, db_path: PathIsh) -> None:
         self.db = sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
-        self.db.row_factory = sqlite3.Row
+        self.db.row_factory = _dict_factory
 
-    def iter_threads(self, order_by: str='name') -> Iterator[Thread]:
+    def iter_threads(self, order_by: str='name') -> Iterator[ThreadHelper]:
         for row in self.db.execute('SELECT * FROM threads ORDER BY ?', (order_by, )):
-            yield Thread(db=self.db, row=row)
+            thread = Thread(row)
+            yield ThreadHelper(db=self.db, thread=thread)
 
     def __enter__(self) -> DAL:
         return self
@@ -76,7 +86,7 @@ def demo(dal: DAL) -> None:
     with dal:
         for t in dal.iter_threads():
             msgs = list(t.iter_messages())
-            print(f"Conversation with {t.name}: {len(msgs)} messages")
+            print(f"Conversation with {t.thread.name}: {len(msgs)} messages")
 
 
 if __name__ == '__main__':
