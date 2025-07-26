@@ -1,29 +1,34 @@
-#!/usr/bin/env python3
-from collections import OrderedDict
-from pathlib import Path
+from __future__ import annotations
+
 import json
-import sys
-from typing import List, Iterator, Union, TypeVar, Optional, Tuple, Dict
-
-
-import fbchat # type: ignore
-### see https://github.com/fbchat-dev/fbchat/issues/615#issuecomment-710127001 
 import re
-fbchat._util.USER_AGENTS    = ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36"]
-fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')
-###
-from fbchat import Client, Thread, Message, ThreadLocation
+import sys
+from collections import OrderedDict
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Optional, TypeVar, Union
 
 from .exporthelpers import logging_helper
+from .exporthelpers.export_helper import Parser, setup_parser
+
+import fbchat  # type: ignore[import-untyped]  # isort: skip
+
+### see https://github.com/fbchat-dev/fbchat/issues/615#issuecomment-710127001
+fbchat._util.USER_AGENTS = [  # ty: ignore[unresolved-attribute]
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36"
+]
+fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')  # ty: ignore[unresolved-attribute]
+###
+from fbchat import Client, Message, Thread, ThreadLocation  # isort: skip
 
 T = TypeVar('T')
 Res = Union[T, Exception]
 
 
-logger = logging_helper.logger('fbchatexport')
+logger = logging_helper.make_logger(__name__)
 
 
-def delk(d: Dict, key: str) -> None:
+def delk(d: dict, key: str) -> None:
     d.pop(key, None)
 
 
@@ -31,32 +36,33 @@ class ExportDb:
     def __init__(self, db_path: Path) -> None:
         # FIXME dataset is broken (doesn't support sqlalchemy 2.0) -- need to switch to use something else
         # however, fbmessengerexport isn't working at the moment anyway :(
-        import dataset # type: ignore
-        self.db = dataset.connect('sqlite:///{}'.format(db_path))
+        import dataset  # type: ignore[import-not-found]
+
+        self.db = dataset.connect(f'sqlite:///{db_path}')
         # TODO need to disconnect??
-        self.ttable = self.db.get_table('threads' , primary_id='uid', primary_type=self.db.types.text)
+        self.ttable = self.db.get_table('threads', primary_id='uid', primary_type=self.db.types.text)
         self.mtable = self.db.get_table('messages', primary_id='uid', primary_type=self.db.types.text)
 
     # TODO add explanations to readme of all deleted stuff?
     def insert_thread(self, thread: Thread) -> None:
         dd = vars(thread)
-        delk(dd, 'type') # user vs group? fine without it for now
-      
+        delk(dd, 'type')  # user vs group? fine without it for now
+
         col = 'color'
         c = dd[col]
         if c is not None:
-            dd[col] = c.value # map from enum to value
+            dd[col] = c.value  # map from enum to value
 
         delk(dd, 'nicknames')
         delk(dd, 'admins')
         delk(dd, 'approval_requests')
 
-        delk(dd, 'participants') # FIXME def would be nice to keep this one..
+        delk(dd, 'participants')  # FIXME def would be nice to keep this one..
 
         lts = 'last_message_timestamp'
-        dd[lts] = int(dd[lts]) # makes more sense for queries?
-    
-        delk(dd, 'plan') # it's unclear, why is this baked into the plan? and what if the plan changes?
+        dd[lts] = int(dd[lts])  # makes more sense for queries?
+
+        delk(dd, 'plan')  # it's unclear, why is this baked into the plan? and what if the plan changes?
 
         self.ttable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
@@ -67,28 +73,28 @@ class ExportDb:
         # delete lists, not sure how to handle
         delk(dd, 'mentions')
         delk(dd, 'read_by')
-        delk(dd, 'attachments') # TODO not sure, what if urls??
+        delk(dd, 'attachments')  # TODO not sure, what if urls??
         delk(dd, 'quick_replies')
         delk(dd, 'reactions')
 
-        delk(dd, 'sticker') # Sticker type
-        delk(dd, 'emoji_size') # EmojiType
+        delk(dd, 'sticker')  # Sticker type
+        delk(dd, 'emoji_size')  # EmojiType
 
-        delk(dd, 'replied_to') # we've got reply_to_id anyway
+        delk(dd, 'replied_to')  # we've got reply_to_id anyway
 
         ts = 'timestamp'
-        dd[ts] = int(dd[ts]) # makes more sense for queries?
+        dd[ts] = int(dd[ts])  # makes more sense for queries?
 
         dd['thread_id'] = thread.uid
 
         self.mtable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
-    def get_oldest_and_newest(self, thread: Thread) -> Optional[Tuple[int, int]]:
+    def get_oldest_and_newest(self, thread: Thread) -> Optional[tuple[int, int]]:
         if 'messages' not in self.db.tables:
-            return None # meh, but works I guess
+            return None  # meh, but works I guess
 
         # TODO use sql placeholders?
-        query = 'SELECT MIN(timestamp), MAX(timestamp) FROM messages WHERE thread_id={}'.format(thread.uid)
+        query = f'SELECT MIN(timestamp), MAX(timestamp) FROM messages WHERE thread_id={thread.uid}'
         [res] = list(self.db.query(query))
         mints = res['MIN(timestamp)']
         maxts = res['MAX(timestamp)']
@@ -99,14 +105,13 @@ class ExportDb:
 
     def check_fetched_all(self, thread: Thread) -> Iterator[Exception]:
         if 'messages' not in self.db.tables:
-            return # meh, but works I guess
+            return  # meh, but works I guess
 
-        query = 'SELECT COUNT(*) FROM messages WHERE thread_id={}'.format(thread.uid)
+        query = f'SELECT COUNT(*) FROM messages WHERE thread_id={thread.uid}'
         [res] = list(self.db.query(query))
         cnt = res['COUNT(*)']
         if cnt != thread.message_count:
-            yield RuntimeError('Expected {} messages in thread {}, got {}'.format(thread.message_count, thread.name, cnt))
-
+            yield RuntimeError(f'Expected {thread.message_count} messages in thread {thread.name}, got {cnt}')
 
 
 # doc doesn't say anything about cap and default is 20. for me 100 seems to work too
@@ -114,8 +119,8 @@ class ExportDb:
 FETCH_THREAD_MESSAGES_LIMIT = 100
 
 
+import backoff
 
-import backoff # type: ignore
 
 class RetryMe(Exception):
     pass
@@ -132,12 +137,11 @@ def fetchThreadMessagesRetry(client, *args, **kwargs):
             # TODO not sure if this is better or relying on 'backoff' logger?
             # logger.exception(e)
             # logger.warning('likely not a real error, retrying..')
-            raise RetryMe
-        else:
-            raise e
+            raise RetryMe  # noqa: B904
+        raise e
 
 
-def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> Iterator[Res[Message]]:
+def iter_thread(client: Client, thread: Thread, before: Optional[int] = None) -> Iterator[Res[Message]]:
     """
     Returns messages in thread (from newer to older)
     """
@@ -160,7 +164,7 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
             # could happen if there is some internal fbchat error. Not much we can do so we just bail.
             yield e
             break
-            
+
         if len(chunk) == 0:
             # not sure if can actually happen??
             yield RuntimeError("Expected non-empty chunk")
@@ -172,7 +176,7 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
 
         if len(chunk) == 0:
             # TODO uhoh.. careful if chunk size is 1?
-            break # hopefully means that there are no more messages to fetch?
+            break  # hopefully means that there are no more messages to fetch?
 
         for m in chunk:
             if last_msg is not None:
@@ -184,14 +188,13 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int]=None) -> I
 
 
 def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
-
     locs = [
-        ThreadLocation.ARCHIVED, # not sure what that means.. apparently groups you don't have access to anymore?
-        ThreadLocation.INBOX,    # most of messages are here.
-        ThreadLocation.OTHER,    # apparently, keeps hidden conversations? Although doesn't returl all of them for me...
+        ThreadLocation.ARCHIVED,  # not sure what that means.. apparently groups you don't have access to anymore?
+        ThreadLocation.INBOX,  # most of messages are here.
+        ThreadLocation.OTHER,  # apparently, keeps hidden conversations? Although doesn't returl all of them for me...
         # ThreadLocation.PENDING, # what is it???
     ]
-    threads: List[Thread] = []
+    threads: list[Thread] = []
     for loc in locs:
         logger.debug('fetching threads: %s', loc)
         # fetches all threads by default
@@ -230,7 +233,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
         if newest is not None:
             # and we want to fetch everything until we encounter newest
             iter_newest = iter_thread(client=client, thread=thread, before=None)
-            with db.db: # transaction. that's *necessary* for new messages to extend fetched data to the right
+            with db.db:  # transaction. that's *necessary* for new messages to extend fetched data to the right
                 for r in iter_newest:
                     if isinstance(r, Exception):
                         yield from error(r)
@@ -238,7 +241,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
                         mts = int(r.timestamp)
                         if newest > mts:
                             logger.info('%s: fetched all new messages (up to %s)', thread.name, newest)
-                            break # interrupt, thus preventing from fetching unnecessary data
+                            break  # interrupt, thus preventing from fetching unnecessary data
                         db.insert_message(thread, r)
 
         # TODO not if should be defensive? could be an indication of a serious issue...
@@ -246,7 +249,8 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
 
 
 def run(*, cookies: str, db: Path) -> None:
-    uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
+    # choose deterministic to prevent alerts from FB
+    uag = fbchat._util.USER_AGENTS[0]  # ty: ignore[unresolved-attribute]
     client = Client(
         # rely on cookies for login
         'dummy_email',
@@ -255,7 +259,6 @@ def run(*, cookies: str, db: Path) -> None:
         session_cookies=json.loads(cookies),
     )
     patch_marketplace(client=client)
-    
 
     edb = ExportDb(db)
 
@@ -280,22 +283,24 @@ def main() -> None:
 
     params = args.params
 
-    db = args.db; assert db is not None
+    db = args.db
+    assert db is not None
     run(cookies=params['cookies'], db=db)
 
 
 def make_parser():
-    from .exporthelpers.export_helper import setup_parser, Parser
-    parser = Parser('''
+    parser = Parser(
+        '''
 Export your personal Facebook chat/Messenger data into an sqlite database.
 
 Main difference from "Download your information" export is that this tool can be run automatically and doesn't require remembering to go onto Facebook website, reentering password, downloading archive, etc.
 
 Note that at the moment it exports *text only*, images or videos are not exported.
-I recommend checking the database after initial export to make sure it contains everything you want from the tool! 
+I recommend checking the database after initial export to make sure it contains everything you want from the tool!
 I cleaned up some things I assumed weren't useful from raw responses, but I could be misinterpreting something as I'm not a heavy Facebook user.
 Feel free to open a github issue if you think something about storage should be changed.
-'''.strip())
+'''.strip()
+    )
     setup_parser(
         parser=parser,
         params=['cookies'],
@@ -307,7 +312,8 @@ Feel free to open a github issue if you think something about storage should be 
 
 def login(*, email: str, password: str) -> str:
     # TODO check old cookies first??
-    uag = fbchat._util.USER_AGENTS[0] # choose deterministic to prevent alerts from FB
+    # choose deterministic to prevent alerts from FB
+    uag = fbchat._util.USER_AGENTS[0]  # ty: ignore[unresolved-attribute]
     client = fbchat.Client(email=email, password=password, user_agent=uag)
     return client.getSession()
 
@@ -325,12 +331,13 @@ def do_login() -> None:
     [[https://www.facebook.com/settings?tab=security][security settings]].
     """
     import getpass
+
     email = input('email:')
     password = getpass.getpass("password (won't be stored):")
     # TODO use input() instead??
     cookies = login(email=email, password=password)
     print("Your cookies string (put it in 'cookies' variable in secrets.py):")
-    print("'{}'".format(json.dumps(cookies)))
+    print(f"'{json.dumps(cookies)}'")
 
 
 def patch_marketplace(client) -> None:
@@ -340,6 +347,7 @@ def patch_marketplace(client) -> None:
     """
 
     orig_fn = client.graphql_requests
+
     def patched_graphql_requests(*queries, orig_fn=orig_fn):
         results = orig_fn(*queries)
         # patched = []
@@ -351,13 +359,14 @@ def patch_marketplace(client) -> None:
             filtered_out = len(nodes) - len(good)
             if filtered_out > 0:
                 # TODO would be nice to propagate the errors up properly and fail script with exit code 1?
-                logger.warning("Filtered out %d threads of type MARKETPLACE. See https://github.com/carpedm20/fbchat/issues/408", filtered_out)
+                logger.warning(
+                    "Filtered out %d threads of type MARKETPLACE. See https://github.com/carpedm20/fbchat/issues/408", filtered_out
+                )
             r["viewer"]["message_threads"]["nodes"] = good
         return results
+
     client.graphql_requests = patched_graphql_requests
 
 
 if __name__ == '__main__':
     main()
-
-
