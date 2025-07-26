@@ -1,0 +1,61 @@
+# see https://github.com/karlicoss/pymplate for up-to-date reference
+[project]
+dynamic = ["version"]  # version is managed by build backend
+name = "fbmessengerexport"
+dependencies = []
+requires-python = ">=3.9"
+
+## these need to be set if you're planning to upload to pypi
+# description = "TODO"
+# license = {file = "LICENSE"}
+# authors = [
+#     {name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"},
+# ]
+# maintainers = [
+#     {name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"},
+# ]
+#
+# [project.urls]
+# Homepage = "https://github.com/karlicoss/pymplate"
+##
+
+
+[project.optional-dependencies]
+export = [
+    "fbchat",  # Facebook API
+    "backoff", # retry helper
+]
+dal = [
+]
+optional = [
+    "orjson",  # faster json processing
+    "colorlog",
+    "ijson",  # faster iterative json processing
+]
+[dependency-groups]
+# TODO: not sure, on the one hand could just use 'standard' dev dependency group
+# On the other hand, it's a bit annoying that it's always included by default? 
+# To make sure it's not included, need to use `uv run --exact --no-default-groups ...`
+testing = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "lxml", # for mypy html coverage
+    "ty>=0.0.1a16",
+]
+
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# unfortunately have to duplicate project name here atm, see https://github.com/pypa/hatch/issues/1894
+[tool.hatch.build.targets.wheel]
+packages = ["src/fbmessengerexport"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "python-simplified-semver"
+local_scheme = "dirty-tag"

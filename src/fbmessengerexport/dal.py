@@ -1,14 +1,14 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
+import sqlite3
+from collections.abc import Iterator
 from contextlib import ContextDecorator
 from datetime import datetime, timezone
-import sqlite3
-from typing import Iterator, Optional, NamedTuple, Dict
+from typing import NamedTuple, Optional
 
+from .common import MessageRow, ThreadRow
 from .exporthelpers import dal_helper
 from .exporthelpers.dal_helper import PathIsh, datetime_aware
-from .common import MessageRow, ThreadRow
 
 
 class Sender(NamedTuple):
@@ -57,9 +57,9 @@ class Thread(NamedTuple):
 class ThreadHelper(NamedTuple):
     db: sqlite3.Connection
     thread: Thread
-    threads: Dict[str, Thread]
+    threads: dict[str, Thread]
 
-    def iter_messages(self, order_by: str='timestamp') -> Iterator[Message]:
+    def iter_messages(self, order_by: str = 'timestamp') -> Iterator[Message]:
         for row in self.db.execute('SELECT * FROM messages WHERE thread_id=? ORDER BY ?', (self.thread.id, order_by)):
             author = row['author']
             # threads db contains some senders, but only if we had direct chats with them, so it's basically best effort we can do
@@ -73,7 +73,7 @@ class ThreadHelper(NamedTuple):
 
 def _dict_factory(cursor, row):
     fields = [column[0] for column in cursor.description]
-    return {key: value for key, value in zip(fields, row)}
+    return dict(zip(fields, row))
 
 
 class DAL(ContextDecorator):
@@ -81,15 +81,15 @@ class DAL(ContextDecorator):
         self.db = sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
         self.db.row_factory = _dict_factory
 
-    def iter_threads(self, order_by: str='name') -> Iterator[ThreadHelper]:
+    def iter_threads(self, order_by: str = 'name') -> Iterator[ThreadHelper]:
         threads = {}
-        for row in self.db.execute('SELECT * FROM threads ORDER BY ?', (order_by, )):
+        for row in self.db.execute('SELECT * FROM threads ORDER BY ?', (order_by,)):
             thread = Thread(row)
             threads[thread.id] = thread
         for thread in threads.values():
             yield ThreadHelper(db=self.db, thread=thread, threads=threads)
 
-    def __enter__(self) -> DAL:
+    def __enter__(self) -> DAL:  # noqa: PYI034
         return self
 
     def __exit__(self, *exc) -> None:
