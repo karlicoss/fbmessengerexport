@@ -6,23 +6,22 @@ import sys
 from collections import OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional, TypeVar, Union
 
 from .exporthelpers import logging_helper
 from .exporthelpers.export_helper import Parser, setup_parser
 
 import fbchat  # type: ignore[import-untyped]  # isort: skip
+import fbchat._state  # type: ignore[import-untyped]  # isort: skip
 
 ### see https://github.com/fbchat-dev/fbchat/issues/615#issuecomment-710127001
-fbchat._util.USER_AGENTS = [  # ty: ignore[unresolved-attribute]
+fbchat._util.USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36"
 ]
-fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')  # ty: ignore[unresolved-attribute]
+fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')
 ###
 from fbchat import Client, Message, Thread, ThreadLocation  # isort: skip
 
-T = TypeVar('T')
-Res = Union[T, Exception]
+type Res[T] = T | Exception
 
 
 logger = logging_helper.make_logger(__name__)
@@ -36,7 +35,7 @@ class ExportDb:
     def __init__(self, db_path: Path) -> None:
         # FIXME dataset is broken (doesn't support sqlalchemy 2.0) -- need to switch to use something else
         # however, fbmessengerexport isn't working at the moment anyway :(
-        import dataset  # type: ignore[import-not-found]
+        import dataset  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]
 
         self.db = dataset.connect(f'sqlite:///{db_path}')
         # TODO need to disconnect??
@@ -89,7 +88,7 @@ class ExportDb:
 
         self.mtable.upsert(OrderedDict(sorted(dd.items())), ['uid'])
 
-    def get_oldest_and_newest(self, thread: Thread) -> Optional[tuple[int, int]]:
+    def get_oldest_and_newest(self, thread: Thread) -> tuple[int, int] | None:
         if 'messages' not in self.db.tables:
             return None  # meh, but works I guess
 
@@ -141,7 +140,7 @@ def fetchThreadMessagesRetry(client, *args, **kwargs):
         raise e
 
 
-def iter_thread(client: Client, thread: Thread, before: Optional[int] = None) -> Iterator[Res[Message]]:
+def iter_thread(client: Client, thread: Thread, before: int | None = None) -> Iterator[Res[Message]]:
     """
     Returns messages in thread (from newer to older)
     """
@@ -151,7 +150,7 @@ def iter_thread(client: Client, thread: Thread, before: Optional[int] = None) ->
 
     last_ts: int = thread.last_message_timestamp if before is None else before
 
-    last_msg: Optional[Message] = None
+    last_msg: Message | None = None
     done = 0
     while True:
         logger.debug('thread %s: fetched %d starting from %s (total %d)', tname, done, last_ts, thread.message_count)
@@ -219,7 +218,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
 
         def error(e: Exception) -> Iterator[Exception]:
             logger.error('While processing thread %s', thread)
-            logger.exception(e)
+            logger.error(e, exc_info=e)
             yield e
 
         # this would handle both 'first import' properly and 'extending' oldest to the left if it wasn't None
@@ -250,7 +249,7 @@ def process_all(client: Client, db: ExportDb) -> Iterator[Exception]:
 
 def run(*, cookies: str, db: Path) -> None:
     # choose deterministic to prevent alerts from FB
-    uag = fbchat._util.USER_AGENTS[0]  # ty: ignore[unresolved-attribute]
+    uag = fbchat._util.USER_AGENTS[0]
     client = Client(
         # rely on cookies for login
         'dummy_email',
@@ -306,14 +305,16 @@ Feel free to open a github issue if you think something about storage should be 
         params=['cookies'],
     )
     parser.add_argument('--db', type=Path, help='Path to result sqlite database')
-    parser.add_argument('--login', action='store_true', help='Pass when using for the first time to login and get cookies')
+    parser.add_argument(
+        '--login', action='store_true', help='Pass when using for the first time to login and get cookies'
+    )
     return parser
 
 
 def login(*, email: str, password: str) -> str:
     # TODO check old cookies first??
     # choose deterministic to prevent alerts from FB
-    uag = fbchat._util.USER_AGENTS[0]  # ty: ignore[unresolved-attribute]
+    uag = fbchat._util.USER_AGENTS[0]
     client = fbchat.Client(email=email, password=password, user_agent=uag)
     return client.getSession()
 
@@ -360,7 +361,8 @@ def patch_marketplace(client) -> None:
             if filtered_out > 0:
                 # TODO would be nice to propagate the errors up properly and fail script with exit code 1?
                 logger.warning(
-                    "Filtered out %d threads of type MARKETPLACE. See https://github.com/carpedm20/fbchat/issues/408", filtered_out
+                    "Filtered out %d threads of type MARKETPLACE. See https://github.com/carpedm20/fbchat/issues/408",
+                    filtered_out,
                 )
             r["viewer"]["message_threads"]["nodes"] = good
         return results
