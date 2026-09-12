@@ -1,10 +1,10 @@
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 
 class MessageRow(TypedDict):
     uid: str
     timestamp: int
-    text: Optional[str]
+    text: str | None
 
 
 class ThreadRow(TypedDict):

@@ -3,17 +3,18 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import ContextDecorator
-from datetime import datetime, timezone
-from typing import NamedTuple, Optional
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import NamedTuple
 
 from .common import MessageRow, ThreadRow
 from .exporthelpers import dal_helper
-from .exporthelpers.dal_helper import PathIsh, datetime_aware
+from .exporthelpers.dal_helper import datetime_aware
 
 
 class Sender(NamedTuple):
     id: str
-    name: Optional[str]
+    name: str | None
 
 
 class Message(NamedTuple):
@@ -28,10 +29,10 @@ class Message(NamedTuple):
     @property
     def dt(self) -> datetime_aware:
         # compared it against old messages in a different timezone, and it does seem to be UTC?
-        return datetime.fromtimestamp(self.row['timestamp'] / 1000, tz=timezone.utc)
+        return datetime.fromtimestamp(self.row['timestamp'] / 1000, tz=UTC)
 
     @property
-    def text(self) -> Optional[str]:
+    def text(self) -> str | None:
         # NOTE: it also might be empty string -- not sure what it means
         return self.row['text']
 
@@ -44,7 +45,7 @@ class Thread(NamedTuple):
         return self.row['uid']
 
     @property
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         # None means a group chat?
         return self.row['name']
 
@@ -73,11 +74,11 @@ class ThreadHelper(NamedTuple):
 
 def _dict_factory(cursor, row):
     fields = [column[0] for column in cursor.description]
-    return dict(zip(fields, row))
+    return dict(zip(fields, row, strict=True))
 
 
 class DAL(ContextDecorator):
-    def __init__(self, db_path: PathIsh) -> None:
+    def __init__(self, db_path: Path | str) -> None:
         self.db = sqlite3.connect(f'file:{db_path}?immutable=1', uri=True)
         self.db.row_factory = _dict_factory
 
