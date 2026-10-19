@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
+import hpikit.cli.dal as cli
+from hpikit.datetime import AwareDateTime, aware
+
 from .common import MessageRow, ThreadRow
-from .exporthelpers import dal_helper
-from .exporthelpers.dal_helper import datetime_aware
 
 
 class Sender(NamedTuple):
@@ -27,9 +28,9 @@ class Message(NamedTuple):
         return self.row['uid']
 
     @property
-    def dt(self) -> datetime_aware:
+    def dt(self) -> AwareDateTime:
         # compared it against old messages in a different timezone, and it does seem to be UTC?
-        return datetime.fromtimestamp(self.row['timestamp'] / 1000, tz=UTC)
+        return aware(datetime.fromtimestamp(self.row['timestamp'] / 1000, tz=UTC))
 
     @property
     def text(self) -> str | None:
@@ -105,4 +106,5 @@ def demo(dal: DAL) -> None:
 
 
 if __name__ == '__main__':
-    dal_helper.main(DAL=DAL, demo=demo, single_source=True)
+    # DAL takes a single sqlite database, whereas cli.main() passes a tuple of paths
+    cli.main(DAL=lambda paths: DAL(*paths), demo=demo)

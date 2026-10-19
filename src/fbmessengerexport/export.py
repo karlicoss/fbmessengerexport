@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import argparse
 import json
+import logging
 import re
 import sys
 from collections import OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
 
-from .exporthelpers import logging_helper
-from .exporthelpers.export_helper import Parser, setup_parser
+import hpikit.cli.export as cli
+import kloggy
+from kloggy import get_logger
 
 import fbchat  # type: ignore[import-untyped]  # isort: skip
 import fbchat._state  # type: ignore[import-untyped]  # isort: skip
@@ -21,10 +24,7 @@ fbchat._state.FB_DTSG_REGEX = re.compile(r'"name":"fb_dtsg","value":"(.*?)"')
 ###
 from fbchat import Client, Message, Thread, ThreadLocation  # isort: skip
 
-type Res[T] = T | Exception
-
-
-logger = logging_helper.make_logger(__name__)
+logger = get_logger(__name__)
 
 
 def delk(d: dict, key: str) -> None:
@@ -140,7 +140,7 @@ def fetchThreadMessagesRetry(client, *args, **kwargs):
         raise e
 
 
-def iter_thread(client: Client, thread: Thread, before: int | None = None) -> Iterator[Res[Message]]:
+def iter_thread(client: Client, thread: Thread, before: int | None = None) -> Iterator[Message | Exception]:
     """
     Returns messages in thread (from newer to older)
     """
@@ -271,7 +271,10 @@ def run(*, cookies: str, db: Path) -> None:
 
 
 def main() -> None:
-    logging_helper.setup_logger('backoff', level='DEBUG')
+    kloggy.setup()
+    backoff_logger = logging.getLogger('backoff')
+    if backoff_logger.level == logging.NOTSET:
+        backoff_logger.setLevel(logging.DEBUG)
 
     parser = make_parser()
     args = parser.parse_args()
@@ -280,28 +283,25 @@ def main() -> None:
         do_login()
         return
 
-    params = args.params
+    params = cli.get_params(parser, args)
 
     db = args.db
     assert db is not None
     run(cookies=params['cookies'], db=db)
 
 
-def make_parser():
-    parser = Parser(
-        '''
+def make_parser() -> argparse.ArgumentParser:
+    parser = cli.make_parser(
+        description='''
 Export your personal Facebook chat/Messenger data into an sqlite database.
 
 Main difference from "Download your information" export is that this tool can be run automatically and doesn't require remembering to go onto Facebook website, reentering password, downloading archive, etc.
 
-Note that at the moment it exports *text only*, images or videos are not exported.
+Note that at the moment it exports **text only**, images or videos are not exported.
 I recommend checking the database after initial export to make sure it contains everything you want from the tool!
 I cleaned up some things I assumed weren't useful from raw responses, but I could be misinterpreting something as I'm not a heavy Facebook user.
 Feel free to open a github issue if you think something about storage should be changed.
-'''.strip()
-    )
-    setup_parser(
-        parser=parser,
+'''.strip(),
         params=['cookies'],
     )
     parser.add_argument('--db', type=Path, help='Path to result sqlite database')
@@ -328,8 +328,8 @@ def do_login() -> None:
 
     Note that this step might prompt you for two factor auth.
 
-    Also Facebook will likely *notify you about unusual login*, so make sure to approve it in
-    [[https://www.facebook.com/settings?tab=security][security settings]].
+    Also Facebook will likely **notify you about unusual login**, so make sure to approve it in
+    [security settings](https://www.facebook.com/settings?tab=security).
     """
     import getpass
 
