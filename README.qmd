@@ -1,0 +1,89 @@
+---
+format:
+  gfm:
+    # keep the line breaks from README.qmd, rather than rewrapping at 72 columns
+    wrap: preserve
+execute:
+  # Hide code by default; individual cells can override this when useful.
+  echo: false
+  # Keep Python warnings out of the README, e.g. a SyntaxWarning from an old dependency while importing the exporter.
+  warning: false
+editor:
+  # this is for VS code
+  # note that it only works for 'preview' mode, not for markdown rendering
+  render-on-save: true
+---
+
+```{python}
+#| label: setup
+from importlib import import_module
+from pathlib import Path
+from tomllib import loads
+
+from hpikit.cli import format_epilog
+
+project = loads(Path("pyproject.toml").read_text())["project"]
+project_name = project["name"]
+
+export_parser = import_module(f'{project_name}.export').make_parser()
+dal_parser = import_module('hpikit.cli.dal').make_parser()
+```
+
+**Warning**: the library this script is using to talk to Facebook API (fbchat) is unmaintained at the moment, so you might experience problems with logging in (or be unable to). See <https://github.com/fbchat-dev/fbchat/issues/638> and other issues for more info.
+
+```{python}
+#| label: export-program
+#| output: asis
+print(export_parser.description)
+```
+
+<!-- Keep this separator: Quarto otherwise moves the generated preamble below the following heading. -->
+
+# Setting up
+
+1.  The easiest way is `pip3 install --user git+https://github.com/karlicoss/fbmessengerexport`.
+
+    Alternatively, clone the repository and run `pip3 install --editable .`.
+
+2.  Login and get cookies: `python3 -m fbmessengerexport.export --login --cookies ANYSTRING`
+
+    Note: on this step you need to pass an arbitrary string as `--cookies` parameter, just to make the argument parser happy.
+    After login use either the real cookie you got, or the `--secrets` parameter (more on that below).
+
+    ```{python}
+    #| label: login-help
+    #| output: asis
+    from inspect import cleandoc
+
+    print(cleandoc(import_module(f'{project_name}.export').do_login.__doc__))
+    ```
+
+# Exporting
+
+```{python}
+#| label: export-help
+#| output: asis
+epilog = format_epilog(export_parser, prog=f'python3 -m {project_name}.export')
+# meh, but works..
+lines = [
+    line if f'python3 -m {project_name}.export' not in line else line + ' --db /path/to/export.sqlite'
+    for line in epilog.splitlines()
+]
+print('\n'.join(lines))
+```
+
+# Using data
+
+```{python}
+#| label: dal-help
+#| output: asis
+print(format_epilog(dal_parser, prog=f'python3 -m {project_name}.dal'))
+```
+
+# Updating README
+
+This README is generated from a 'literate' Quarto [README.qmd](README.qmd) via the following command:
+
+`tox -e quarto`
+
+If you want to correct something, feel free to simply update `README.md` though, I can reconcile the changes next time I regenerate it.
