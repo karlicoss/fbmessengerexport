@@ -35,7 +35,7 @@ class ExportDb:
     def __init__(self, db_path: Path) -> None:
         # FIXME dataset is broken (doesn't support sqlalchemy 2.0) -- need to switch to use something else
         # however, fbmessengerexport isn't working at the moment anyway :(
-        import dataset  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]
+        import dataset  # type: ignore[import-not-found]  # ty: ignore[import-not-found]
 
         self.db = dataset.connect(f'sqlite:///{db_path}')
         # TODO need to disconnect??
